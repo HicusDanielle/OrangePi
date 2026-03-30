@@ -226,8 +226,10 @@ do_deploy() {
     [ -f "$src/config/99-modesetting.conf" ] && \
         rsync -av "$src/config/99-modesetting.conf" /etc/X11/xorg.conf.d/
     [ -f "$src/config/99-touchscreen.rules" ] && \
-        rsync -av "$src/config/99-touchscreen.rules" /etc/udev/rules.d/ && \
-        udevadm control --reload-rules && udevadm trigger
+        rsync -av "$src/config/99-touchscreen.rules" /etc/udev/rules.d/
+    [ -f "$src/config/99-kiosk-leds.rules" ] && \
+        rsync -av "$src/config/99-kiosk-leds.rules" /etc/udev/rules.d/
+    udevadm control --reload-rules && udevadm trigger
 
     # user_settings.json: deploy example only if no real file exists
     mkdir -p "$DEST/config"
@@ -247,6 +249,77 @@ do_deploy() {
 }
 
 do_services() {
+    # ── 1. Create kiosk user ──────────────────────────────────────────────────
+    echo "[installer] Setting up kiosk user..."
+    if ! id kiosk &>/dev/null; then
+        useradd -r -m -d /home/kiosk -s /bin/bash \
+            -c "Orange Pi kiosk user" kiosk
+        echo "[installer] User 'kiosk' created"
+    else
+        echo "[installer] User 'kiosk' already exists"
+    fi
+    # Add kiosk to required hardware groups
+    for grp in video audio input netdev tty dialout plugdev; do
+        getent group "$grp" &>/dev/null && usermod -aG "$grp" kiosk
+    done
+
+    # ── 2. Sudoers: only specific privileged commands, no password ────────────
+    cat > /etc/sudoers.d/kiosk-orangepi << 'SUDOERS'
+# Orange Pi kiosk — minimal privilege escalation
+# NOPASSWD for shutdown/reboot (called by Flask dashboard)
+kiosk ALL=(root) NOPASSWD: /sbin/shutdown
+kiosk ALL=(root) NOPASSWD: /usr/bin/timedatectl set-timezone *
+kiosk ALL=(root) NOPASSWD: /usr/bin/nmcli device wifi connect *
+kiosk ALL=(root) NOPASSWD: /usr/bin/nmcli device wifi list
+SUDOERS
+    chmod 440 /etc/sudoers.d/kiosk-orangepi
+    echo "[installer] Sudoers configured for kiosk"
+
+    # ── 3. Fix file ownership ─────────────────────────────────────────────────
+    chown -R kiosk:kiosk /opt/orangepi 2>/dev/null || true
+    chown -R kiosk:kiosk /var/log/orangepi 2>/dev/null || true
+    # PID files in /run
+    mkdir -p /run/orangepi
+    chown kiosk:kiosk /run/orangepi
+
+    # ── 4. XDG_RUNTIME_DIR for kiosk ─────────────────────────────────────────
+    KIOSK_UID=$(id -u kiosk)
+    mkdir -p "/run/user/${KIOSK_UID}"
+    chown kiosk:kiosk "/run/user/${KIOSK_UID}"
+    chmod 700 "/run/user/${KIOSK_UID}"
+    # Patch the service file with the real UID
+    sed -i "s|XDG_RUNTIME_DIR=/run/user/[0-9]*|XDG_RUNTIME_DIR=/run/user/${KIOSK_UID}|" \
+        /etc/systemd/system/x-display.service 2>/dev/null || true
+    echo "[installer] XDG_RUNTIME_DIR set to /run/user/${KIOSK_UID}"
+
+    # ── 5. Autologin: kiosk on tty1 ──────────────────────────────────────────
+    echo "[installer] Configuring autologin for kiosk on tty1..."
+    mkdir -p /etc/systemd/system/getty@tty1.service.d
+    cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << AUTOLOGIN
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin kiosk --noclear %I \$TERM
+Type=idle
+AUTOLOGIN
+    echo "[installer] Autologin configured — kiosk user logs in to tty1 automatically"
+
+    # ── 6. Onboard virtual keyboard autostart ────────────────────────────────
+    if command -v onboard &>/dev/null; then
+        mkdir -p /home/kiosk/.config/autostart
+        cat > /home/kiosk/.config/autostart/onboard-kiosk.desktop << 'ONBOARD'
+[Desktop Entry]
+Type=Application
+Name=Onboard Keyboard
+Exec=onboard --size=800x220 --layout=Phone --xid
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+ONBOARD
+        chown -R kiosk:kiosk /home/kiosk/.config
+        echo "[installer] Onboard keyboard autostart configured"
+    fi
+
+    # ── 7. Enable and start services ─────────────────────────────────────────
+    systemctl daemon-reload
     echo "[installer] Enabling and starting services..."
     local services=("weather-station.service" "x-display.service" "led-monitor.service")
     for svc in "${services[@]}"; do
@@ -263,33 +336,7 @@ do_services() {
         state=$(systemctl is-active "$svc" 2>/dev/null || echo "not-found")
         status+="  $svc : $state\n"
     done
-    info "Services status:\n\n$status"
-
-    # ── Autologin: root on tty1 without password ──────────────────────────────
-    echo "[installer] Configuring autologin for root on tty1..."
-    mkdir -p /etc/systemd/system/getty@tty1.service.d
-    cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << 'AUTOLOGIN'
-[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
-Type=idle
-AUTOLOGIN
-    systemctl daemon-reload
-    echo "[installer] Autologin configured — root will login to tty1 automatically"
-
-    # ── Onboard virtual keyboard autostart ────────────────────────────────────
-    if command -v onboard &>/dev/null; then
-        mkdir -p /etc/xdg/autostart
-        cat > /etc/xdg/autostart/onboard-kiosk.desktop << 'ONBOARD'
-[Desktop Entry]
-Type=Application
-Name=Onboard Keyboard
-Exec=onboard --size=800x200 --layout=Phone --xid
-NoDisplay=true
-X-GNOME-Autostart-enabled=true
-ONBOARD
-        echo "[installer] Onboard keyboard autostart configured"
-    fi
+    info "Services status:\n\n$status\nApps run as: kiosk (UID ${KIOSK_UID})\nSSH access: root only"
 }
 
 do_timezone() {

@@ -8,7 +8,7 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-User=root
+User=kiosk
 WorkingDirectory=/opt/orangepi/apps
 ExecStart=/usr/bin/bash /opt/orangepi/scripts/start_all.sh
 Restart=on-failure

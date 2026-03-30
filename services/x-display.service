@@ -9,9 +9,9 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-User=root
+User=kiosk
 Environment="DISPLAY=:0"
-Environment="XDG_RUNTIME_DIR=/run/user/0"
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
 ExecStart=/usr/bin/bash /opt/orangepi/scripts/start_display.sh
 Restart=on-failure
 RestartSec=8

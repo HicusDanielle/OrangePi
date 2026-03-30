@@ -114,7 +114,7 @@ def wifi_connect():
         return jsonify({'message': 'Invalid password'}), 400
     try:
         result = subprocess.run(
-            ['nmcli', '--ask', 'device', 'wifi', 'connect', ssid],
+            ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid],
             input=f'{password}\n',
             timeout=25, capture_output=True, text=True
         )
@@ -225,7 +225,7 @@ def set_timezone():
     if not valid_timezone(tz):
         return jsonify({'message': 'Invalid timezone'}), 400
     try:
-        subprocess.run(['timedatectl', 'set-timezone', tz], check=True, timeout=5)
+        subprocess.run(['sudo', 'timedatectl', 'set-timezone', tz], check=True, timeout=5)
         save_settings({'timezone': tz})
         return jsonify({'message': f'Timezone set to {tz}'})
     except Exception:
@@ -243,7 +243,7 @@ def auto_timezone():
         if not valid_timezone(tz):
             return jsonify({'message': 'Auto-detect returned invalid timezone'}), 422
         save_settings({'timezone': tz, 'latitude': lat, 'longitude': lon})
-        subprocess.run(['timedatectl', 'set-timezone', tz], timeout=5)
+        subprocess.run(['sudo', 'timedatectl', 'set-timezone', tz], timeout=5)
         return jsonify({'timezone': tz, 'message': f'Timezone set to {tz}'})
     except Exception:
         log.exception('auto_timezone failed')
@@ -253,14 +253,14 @@ def auto_timezone():
 @app.route('/api/system/reboot', methods=['POST'])
 def reboot():
     log.warning('Reboot requested by %s', request.remote_addr)
-    subprocess.Popen(['shutdown', '-r', 'now'])
+    subprocess.Popen(['sudo', 'shutdown', '-r', 'now'])
     return jsonify({'ok': True})
 
 
 @app.route('/api/system/shutdown', methods=['POST'])
 def shutdown():
     log.warning('Shutdown requested by %s', request.remote_addr)
-    subprocess.Popen(['shutdown', '-h', 'now'])
+    subprocess.Popen(['sudo', 'shutdown', '-h', 'now'])
     return jsonify({'ok': True})
 
 

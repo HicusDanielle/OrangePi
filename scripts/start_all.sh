@@ -36,7 +36,7 @@ start_app() {
     wait_port_free "$port"
     echo "[start_all] Starting ${name} (port ${port})..."
     "$PYTHON" "$file" >> "$LOG_DIR/${log}" 2>&1 &
-    echo $! > "/run/orangepi_${name}.pid"
+    echo $! > "/run/orangepi/${name}.pid"
 }
 
 start_app "portal"  5002 home_portal.py    portal.log

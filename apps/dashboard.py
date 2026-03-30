@@ -1478,7 +1478,7 @@ def api_wizard_finish():
         tz = 'UTC'
     saved = save_settings(data)
     try:
-        subprocess.run(['timedatectl', 'set-timezone', tz], timeout=5)
+        subprocess.run(['sudo', 'timedatectl', 'set-timezone', tz], timeout=5)
     except Exception:
         pass
     return jsonify(saved)
@@ -1551,7 +1551,7 @@ def api_set_timezone():
     if not valid_timezone(tz):
         return jsonify({'message': 'Invalid timezone'}), 400
     try:
-        subprocess.run(['timedatectl', 'set-timezone', tz], check=True, timeout=5)
+        subprocess.run(['sudo', 'timedatectl', 'set-timezone', tz], check=True, timeout=5)
         save_settings({'timezone': tz})
         return jsonify({'message': f'Timezone set to {tz}'})
     except Exception:
@@ -1569,7 +1569,7 @@ def api_auto_timezone():
         if not valid_timezone(tz):
             tz = 'UTC'
         save_settings({'timezone': tz, 'latitude': lat, 'longitude': lon})
-        subprocess.run(['timedatectl', 'set-timezone', tz], timeout=5)
+        subprocess.run(['sudo', 'timedatectl', 'set-timezone', tz], timeout=5)
         return jsonify({'timezone': tz, 'message': f'Timezone set to {tz}'})
     except Exception:
         log.exception('auto_timezone failed')
@@ -1579,14 +1579,14 @@ def api_auto_timezone():
 @app.route('/api/system/reboot', methods=['POST'])
 def api_reboot():
     log.warning('Reboot requested from %s', request.remote_addr)
-    subprocess.Popen(['shutdown', '-r', 'now'])
+    subprocess.Popen(['sudo', 'shutdown', '-r', 'now'])
     return jsonify({'ok': True})
 
 
 @app.route('/api/system/shutdown', methods=['POST'])
 def api_shutdown():
     log.warning('Shutdown requested from %s', request.remote_addr)
-    subprocess.Popen(['shutdown', '-h', 'now'])
+    subprocess.Popen(['sudo', 'shutdown', '-h', 'now'])
     return jsonify({'ok': True})
 
 
@@ -1678,7 +1678,7 @@ def api_wifi_connect():
         return jsonify({'message': 'Password too long (max 63 characters)'}), 400
     try:
         subprocess.run(
-            ['nmcli', '--ask', 'device', 'wifi', 'connect', ssid],
+            ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid],
             input=f'{password}\n', capture_output=True, text=True, timeout=25
         )
         return jsonify({'message': f'Connecting to {ssid}'})

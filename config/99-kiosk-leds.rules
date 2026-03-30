@@ -1,0 +1,13 @@
+# udev rules: allow kiosk user to control LEDs and video devices
+# Deployed to: /etc/udev/rules.d/99-kiosk-leds.rules
+
+# LED sysfs — allow kiosk group to set brightness
+SUBSYSTEM=="leds", ACTION=="add", \
+    RUN+="/bin/chgrp kiosk /sys%p/brightness", \
+    RUN+="/bin/chmod g+w /sys%p/brightness"
+
+# Video devices (V4L2 hardware decode)
+SUBSYSTEM=="video4linux", GROUP="video", MODE="0660"
+
+# DRM/KMS devices (Xorg modesetting)
+SUBSYSTEM=="drm", GROUP="video", MODE="0660"
