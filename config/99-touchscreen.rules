@@ -1,6 +1,18 @@
-# wch.cn USB2IIC_CTP_CONTROL touchscreen (VID:PID 1a86:e5e3)
-# Detected on /dev/input/event5
-SUBSYSTEM=="input", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="e5e3", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1", TAG+="uaccess"
+# udev rules for touchscreen input devices
+# Deployed to: /etc/udev/rules.d/99-touchscreen.rules
 
-# Generic USB HID touchscreen fallback
-SUBSYSTEM=="input", ATTRS{name}=="*ouch*", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"
+# USB touchscreen — wch.cn controller (VID:1a86 PID:e5e3)
+SUBSYSTEM=="input", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="e5e3", \
+    ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0", \
+    TAG+="uaccess", TAG+="seat"
+
+# Generic USB touchscreen — by class
+SUBSYSTEM=="input", ATTRS{bInterfaceClass}=="03", ATTRS{bInterfaceSubClass}=="00", \
+    ATTRS{bInterfaceProtocol}=="00", \
+    ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0", \
+    TAG+="uaccess", TAG+="seat"
+
+# Generic — by device name pattern (avoid over-broad "*ouch*" match)
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="*[Tt]ouch[Ss]creen*", \
+    ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0", \
+    TAG+="uaccess"

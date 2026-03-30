@@ -1,13 +1,17 @@
 [Unit]
 Description=Orange Pi Control Center — LED Status Monitor
-After=multi-user.target
+After=weather-station.service
+Wants=weather-station.service
 
 [Service]
 Type=simple
 User=root
 ExecStart=/usr/bin/bash /opt/orangepi/scripts/led_monitor.sh
-Restart=always
+Restart=on-failure
 RestartSec=5
+TimeoutStopSec=5
+
+# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=orangepi-led

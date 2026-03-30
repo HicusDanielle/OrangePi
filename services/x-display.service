@@ -1,8 +1,11 @@
 [Unit]
 Description=Orange Pi Control Center — X Display & Chromium Kiosk
-Documentation=https://github.com/your-repo/OrangePI
+Documentation=https://github.com/HicusDanielle/OrangePi
 After=network-online.target weather-station.service
 Wants=weather-station.service
+BindsTo=weather-station.service
+StartLimitIntervalSec=120
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -10,8 +13,11 @@ User=root
 Environment="DISPLAY=:0"
 Environment="XDG_RUNTIME_DIR=/run/user/0"
 ExecStart=/usr/bin/bash /opt/orangepi/scripts/start_display.sh
-Restart=always
-RestartSec=5
+Restart=on-failure
+RestartSec=8
+TimeoutStartSec=90
+
+# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=orangepi-display

@@ -1,19 +1,28 @@
 [Unit]
 Description=Orange Pi Control Center — Flask Applications
-Documentation=https://github.com/your-repo/OrangePI
+Documentation=https://github.com/HicusDanielle/OrangePi
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/orangepi/apps
 ExecStart=/usr/bin/bash /opt/orangepi/scripts/start_all.sh
-Restart=always
+Restart=on-failure
 RestartSec=5
+TimeoutStartSec=60
+
+# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=orangepi-apps
+
+# Resource limits — prevent runaway processes on 1 GB RAM
+MemoryMax=512M
+TasksMax=64
 
 [Install]
 WantedBy=multi-user.target
