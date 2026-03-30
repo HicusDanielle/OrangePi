@@ -6,6 +6,7 @@
 # Called by:   x-display.service
 ###############################################################################
 set -uo pipefail
+# Note: -e not used intentionally — individual commands may fail gracefully
 
 SCRIPT_DIR="/opt/orangepi/scripts"
 LOG_DIR="/var/log/orangepi"
@@ -53,7 +54,6 @@ echo "[display] Starting Xorg..."
 /usr/lib/xorg/Xorg :0 vt1 \
     -logfile "$LOG_DIR/xorg.log" \
     -nolisten tcp \
-    -nolisten local \
     &
 XORG_PID=$!
 

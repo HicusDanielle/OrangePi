@@ -139,11 +139,12 @@ case "$HW_BOARD" in
 esac
 
 # ── Display connection type ────────────────────────────────────────────────────
-if DISPLAY=:0 xrandr --query 2>/dev/null | grep -qiE 'HDMI|DVI'; then
+# Detect display connector type from sysfs (works before X starts)
+if ls /sys/class/drm/card*/card*-HDMI-*/status 2>/dev/null | xargs grep -l "^connected" &>/dev/null; then
     HW_DISPLAY="hdmi"
-elif DISPLAY=:0 xrandr --query 2>/dev/null | grep -qi 'DSI'; then
+elif ls /sys/class/drm/card*/card*-DSI-*/status 2>/dev/null | xargs grep -l "^connected" &>/dev/null; then
     HW_DISPLAY="dsi"
-elif DISPLAY=:0 xrandr --query 2>/dev/null | grep -qi 'VGA'; then
+elif ls /sys/class/drm/card*/card*-VGA-*/status 2>/dev/null | xargs grep -l "^connected" &>/dev/null; then
     HW_DISPLAY="vga"
 fi
 

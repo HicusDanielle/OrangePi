@@ -103,11 +103,15 @@ def weather_data(lat: float, lon: float) -> dict:
 
 # ── System helpers ────────────────────────────────────────────────────────────
 def sys_temp() -> str:
-    try:
-        with open('/sys/class/thermal/thermal_zone0/temp') as f:
-            return f"{int(f.read()) // 1000}°C"
-    except Exception:
-        return 'N/A'
+    import glob as _glob
+    for path in sorted(_glob.glob('/sys/class/thermal/thermal_zone*/temp')):
+        try:
+            val = int(open(path).read().strip())
+            if val > 1000:
+                return f"{val // 1000}°C"
+        except (OSError, ValueError):
+            pass
+    return 'N/A'
 
 def sys_uptime() -> str:
     try:
@@ -1117,9 +1121,14 @@ function scanWifi() {
     setMsg('net-msg', '');
     const list = document.getElementById('scan-list');
     if (d.networks && d.networks.length) {
-      list.innerHTML = d.networks.map(n =>
-        `<button class="btn btn-sm" onclick="document.getElementById('ssid').value='${n.replace(/'/g, "\\'")}'">${n}</button>`
-      ).join('');
+      list.innerHTML = '';
+      d.networks.forEach(n => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm';
+        btn.textContent = n;
+        btn.onclick = () => { document.getElementById('ssid').value = n; };
+        list.appendChild(btn);
+      });
       document.getElementById('scan-results').style.display = 'block';
     } else {
       setMsg('net-msg', d.message || 'No networks found');
@@ -1189,13 +1198,25 @@ function autoTimezone() {
 
 /* ── Power ───────────────────────────────────────────────────────────────────── */
 function confirmAction(action) {
-  const labels = {reboot: 'Reboot the Orange Pi?', shutdown: 'Shutdown the Orange Pi?'};
-  if (!confirm(labels[action])) return;
-  if (action === 'reboot') {
-    post('/api/system/reboot').then(() => toast('🔄 Rebooting...', 'rgba(239,68,68,0.9)'));
-  } else {
-    post('/api/system/shutdown').then(() => toast('⏻ Shutting down...', 'rgba(239,68,68,0.9)'));
-  }
+  const label = action === 'reboot' ? '🔄 Reboot' : '⏻ Shutdown';
+  const endpoint = action === 'reboot' ? '/api/system/reboot' : '/api/system/shutdown';
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(3,8,20,0.82);backdrop-filter:blur(4px)';
+  overlay.innerHTML = `
+    <div style="background:linear-gradient(150deg,rgba(30,41,59,0.98),rgba(15,23,42,0.98));border:1px solid rgba(255,255,255,0.13);border-radius:14px;padding:24px 28px;min-width:280px;text-align:center">
+      <div style="font-size:14px;font-weight:600;margin-bottom:16px;color:#f1f5f9">Confirm: ${label} the device?</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button id="_ca_ok"     class="btn btn-red" style="flex:1">${label}</button>
+        <button id="_ca_cancel" class="btn"         style="flex:1">✕ Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('_ca_cancel').onclick = () => overlay.remove();
+  document.getElementById('_ca_ok').onclick = () => {
+    overlay.remove();
+    post(endpoint).then(() => toast(label + '...', 'rgba(239,68,68,0.9)'));
+  };
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
 }
 
 /* ── Wizard ──────────────────────────────────────────────────────────────────── */
@@ -1360,11 +1381,14 @@ function topbarShutdown() {
 }
 
 /* ── Auto-refresh: active panel only ────────────────────────────────────────── */
+let _autoRefreshing = false;
 setInterval(() => {
+  if (_autoRefreshing) return;
   const cur = navHistory[navHistory.length - 1];
-  if (cur === 'dash')    loadDash();
-  if (cur === 'weather') loadWeather();
-  if (cur === 'system')  loadSystem();
+  if (cur !== 'dash' && cur !== 'weather' && cur !== 'system') return;
+  _autoRefreshing = true;
+  const p = cur === 'dash' ? loadDash() : cur === 'weather' ? loadWeather() : loadSystem();
+  Promise.resolve(p).finally(() => { _autoRefreshing = false; });
 }, 30000);
 
 /* ── Boot ────────────────────────────────────────────────────────────────────── */
@@ -1466,7 +1490,12 @@ def api_ip():
 def api_geoip():
     try:
         j = req.get('https://ip-api.com/json', timeout=6).json()
-        return jsonify({'latitude': j.get('lat'), 'longitude': j.get('lon'), 'timezone': j.get('timezone')})
+        lat = j.get('lat')
+        lon = j.get('lon')
+        tz  = j.get('timezone')
+        if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+            raise ValueError('bad coords')
+        return jsonify({'latitude': lat, 'longitude': lon, 'timezone': tz})
     except Exception:
         log.warning('GeoIP lookup failed')
         return jsonify({'error': 'geoip_failed'}), 503
@@ -1566,10 +1595,10 @@ def api_resolution():
     w, h = res.split('x')
     try:
         # Probe the actual connected output name first
-        out = subprocess.check_output(['xrandr', '--query'], timeout=3, env={'DISPLAY': ':0'}).decode()
+        out = subprocess.check_output(['xrandr', '--query'], timeout=3, env={**__import__('os').environ, 'DISPLAY': ':0'}).decode()
         output = next((l.split()[0] for l in out.splitlines() if ' connected' in l), 'HDMI-1')
         subprocess.run(['xrandr', '--output', output, '--mode', f'{w}x{h}'], capture_output=True, timeout=5,
-                       env={'DISPLAY': ':0'})
+                       env={**__import__('os').environ, 'DISPLAY': ':0'})
         return jsonify({'message': f'Resolution set to {res}'})
     except Exception:
         log.exception('xrandr failed')
@@ -1584,10 +1613,10 @@ def api_brightness():
         return jsonify({'ok': False, 'message': 'Invalid value'}), 400
     level = round(val / 100, 2)
     try:
-        out = subprocess.check_output(['xrandr', '--query'], timeout=3, env={'DISPLAY': ':0'}).decode()
+        out = subprocess.check_output(['xrandr', '--query'], timeout=3, env={**__import__('os').environ, 'DISPLAY': ':0'}).decode()
         output = next((l.split()[0] for l in out.splitlines() if ' connected' in l), 'HDMI-1')
         subprocess.run(['xrandr', '--output', output, '--brightness', str(level)],
-                       capture_output=True, timeout=5, env={'DISPLAY': ':0'})
+                       capture_output=True, timeout=5, env={**__import__('os').environ, 'DISPLAY': ':0'})
         return jsonify({'ok': True})
     except Exception:
         log.exception('xrandr brightness failed')

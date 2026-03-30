@@ -3,6 +3,7 @@
 Redirects to unified dashboard. Keeps /api/* routes for backward compatibility.
 """
 import logging
+import os
 from flask import Flask, redirect, request, jsonify
 import subprocess
 
@@ -60,7 +61,8 @@ def volume():
         vol = max(0, min(100, int((request.json or {}).get('volume', 70))))
     except (TypeError, ValueError):
         vol = 70
-    subprocess.run(['amixer', 'set', 'Master', f'{vol}%'], capture_output=True)
+    ctl = os.environ.get('HW_AUDIO_CTL', 'Master')
+    subprocess.run(['amixer', 'set', ctl, f'{vol}%'], capture_output=True)
     return jsonify({'ok': True, 'volume': vol})
 
 
