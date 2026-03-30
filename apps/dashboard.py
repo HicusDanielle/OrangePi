@@ -219,6 +219,12 @@ HTML = r"""<!DOCTYPE html>
       transition:background .15s, color .15s;
     }
     .topbar-icon-btn:hover { background:rgba(255,255,255,0.14); color:#e2e8f0; }
+    .topbar-stat {
+      font-size:11.5px; color:#64748b; font-variant-numeric:tabular-nums;
+      background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08);
+      border-radius:6px; padding:3px 8px; letter-spacing:.3px;
+      white-space:nowrap;
+    }
     .topbar-icon-btn.btn-red-ico { border-color:rgba(239,68,68,0.3); }
     .topbar-icon-btn.btn-red-ico:hover { background:rgba(239,68,68,0.2); color:#f87171; border-color:rgba(239,68,68,0.5); }
     .topbar-icon-btn.spinning { animation:spin .7s linear infinite; pointer-events:none; }
@@ -552,6 +558,9 @@ HTML = r"""<!DOCTYPE html>
         <h2 id="panel-title">📊 Dashboard</h2>
       </div>
       <div class="topbar-right">
+        <span class="topbar-stat" id="tb-temp" title="CPU Temperature">🌡️--</span>
+        <span class="topbar-stat" id="tb-ip"   title="IP Address">🌐--</span>
+        <button class="topbar-icon-btn" id="kbd-btn" onclick="toggleKeyboard()" title="On-screen keyboard">⌨️</button>
         <button class="topbar-icon-btn" id="refresh-btn" onclick="refreshCurrentPanel()" title="Refresh">🔄</button>
         <span class="clock" id="clock">--:--:--</span>
         <button class="topbar-icon-btn btn-red-ico" onclick="topbarShutdown()" title="Shutdown / Reboot">⏻</button>
@@ -876,6 +885,30 @@ function tick() {
 }
 tick(); setInterval(tick, 1000);
 
+let _tbRefreshBusy = false;
+function updateTopbarStats() {
+  if (_tbRefreshBusy) return;
+  _tbRefreshBusy = true;
+  api('/api/system').then(d => {
+    if (d.temp)     setTextSafe('tb-temp', '🌡️' + d.temp);
+    if (d.ip)       setTextSafe('tb-ip',   '🌐' + d.ip);
+    // Keep main panels in sync too
+    setTextSafe('s-cpu',    d.temp);
+    setTextSafe('s-mem',    d.memory);
+    setTextSafe('s-disk',   d.disk);
+    setTextSafe('s-uptime', d.uptime);
+    setTextSafe('s-ip',     d.ip);
+    setTextSafe('s-host',   d.hostname || '--');
+    setTextSafe('d-cpu',    d.temp);
+    setTextSafe('d-mem',    'RAM ' + d.memory);
+    setTextSafe('d-uptime', 'Up ' + d.uptime);
+    setTextSafe('d-ip',     d.ip);
+    setTextSafe('d-disk',   'Disk ' + d.disk);
+  }).catch(() => {}).finally(() => { _tbRefreshBusy = false; });
+}
+updateTopbarStats();
+setInterval(updateTopbarStats, 10000);
+
 /* ── Navigation ──────────────────────────────────────────────────────────────── */
 function nav(id, btn) {
   const prev = navHistory[navHistory.length - 1];
@@ -1028,20 +1061,8 @@ function loadWeather(force) {
 
 /* ── System info ─────────────────────────────────────────────────────────────── */
 function loadSystem() {
-  return api('/api/system').then(d => {
-    setTextSafe('s-cpu',    d.temp);
-    setTextSafe('s-mem',    d.memory);
-    setTextSafe('s-disk',   d.disk);
-    setTextSafe('s-uptime', d.uptime);
-    setTextSafe('s-ip',     d.ip);
-    setTextSafe('s-host',   d.hostname || '--');
-    // Keep dashboard widgets in sync too
-    setTextSafe('d-cpu',    d.temp);
-    setTextSafe('d-mem',    `RAM ${d.memory}`);
-    setTextSafe('d-uptime', `Up ${d.uptime}`);
-    setTextSafe('d-ip',     d.ip);
-    setTextSafe('d-disk',   `Disk ${d.disk}`);
-  }).catch(() => {});
+  _tbRefreshBusy = false;
+  return Promise.resolve(updateTopbarStats());
 }
 
 function loadDash() {
@@ -1332,6 +1353,29 @@ function wizFinish() {
     document.getElementById('wizard-overlay').classList.remove('open');
     toast('✓ Setup complete!'); loadDash(); loadCFG();
   }).catch(() => toast('Save failed', 'rgba(239,68,68,0.9)'));
+}
+
+/* ── On-screen keyboard ──────────────────────────────────────────────────────── */
+let _kbdVisible = false;
+function toggleKeyboard() {
+  const btn = document.getElementById('kbd-btn');
+  _kbdVisible = !_kbdVisible;
+  btn.style.background = _kbdVisible ? 'rgba(34,197,94,0.2)' : '';
+  btn.style.borderColor = _kbdVisible ? 'rgba(34,197,94,0.4)' : '';
+  // Try to control onboard via dbus if available, else open in new window
+  fetch('/api/keyboard/' + (_kbdVisible ? 'show' : 'hide'), {method:'POST'}).catch(() => {
+    // Fallback: open a simple soft-keyboard overlay
+    let kbdEl = document.getElementById('_soft_kbd');
+    if (_kbdVisible) {
+      if (!kbdEl) {
+        kbdEl = document.createElement('div');
+        kbdEl.id = '_soft_kbd';
+        kbdEl.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:500;height:220px;background:rgba(15,23,42,0.97);border-top:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:12px;color:#64748b';
+        kbdEl.innerHTML = '<div style="text-align:center"><div style="font-size:14px;margin-bottom:6px;color:#94a3b8">⌨️ Install <b>onboard</b> for touch keyboard</div><div>Run installer → Install packages</div></div>';
+        document.body.appendChild(kbdEl);
+      } else { kbdEl.style.display = 'flex'; }
+    } else if (kbdEl) { kbdEl.style.display = 'none'; }
+  });
 }
 
 /* ── Topbar refresh ──────────────────────────────────────────────────────────── */
@@ -1660,6 +1704,23 @@ def api_wifi_scan():
         log.exception('WiFi scan failed')
         return jsonify({'message': 'Scan failed', 'networks': []}), 500
 
+
+@app.route('/api/keyboard/<action>', methods=['POST'])
+def api_keyboard(action):
+    if action not in ('show', 'hide'):
+        return jsonify({'ok': False}), 400
+    try:
+        if action == 'show':
+            subprocess.Popen(
+                ['onboard', '--size=800x220', '--layout=Phone'],
+                env={**__import__('os').environ, 'DISPLAY': ':0'},
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        else:
+            subprocess.run(['pkill', '-f', 'onboard'], stderr=subprocess.DEVNULL)
+        return jsonify({'ok': True})
+    except Exception:
+        return jsonify({'ok': False}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5004, debug=False)

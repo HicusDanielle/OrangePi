@@ -141,6 +141,8 @@ do_install() {
         network-manager \
         curl wget jq \
         usbutils rsync git \
+        onboard \
+        vainfo libva-dev \
         2>/dev/null || true
 
     # Chromium — package name varies by distro/board
@@ -153,10 +155,16 @@ do_install() {
 
     # Board-specific extras
     case "$BOARD" in
+        orangepi)
+            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                libv4l-dev v4l-utils \
+                libvdpau-va-gl1 2>/dev/null || true
+            ;;
         raspberry)
             # raspi-config helper, VC libraries
             DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                raspi-config libraspberrypi-bin 2>/dev/null || true
+                raspi-config libraspberrypi-bin \
+                libv4l-dev v4l-utils 2>/dev/null || true
             ;;
         odroid)
             # Odroid utility package
@@ -167,7 +175,8 @@ do_install() {
             # Intel video/audio firmware
             DEBIAN_FRONTEND=noninteractive apt-get install -y \
                 intel-microcode firmware-misc-nonfree \
-                va-driver-all 2>/dev/null || true
+                va-driver-all \
+                i965-va-driver intel-media-va-driver 2>/dev/null || true
             ;;
     esac
 
@@ -255,6 +264,32 @@ do_services() {
         status+="  $svc : $state\n"
     done
     info "Services status:\n\n$status"
+
+    # ── Autologin: root on tty1 without password ──────────────────────────────
+    echo "[installer] Configuring autologin for root on tty1..."
+    mkdir -p /etc/systemd/system/getty@tty1.service.d
+    cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << 'AUTOLOGIN'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
+Type=idle
+AUTOLOGIN
+    systemctl daemon-reload
+    echo "[installer] Autologin configured — root will login to tty1 automatically"
+
+    # ── Onboard virtual keyboard autostart ────────────────────────────────────
+    if command -v onboard &>/dev/null; then
+        mkdir -p /etc/xdg/autostart
+        cat > /etc/xdg/autostart/onboard-kiosk.desktop << 'ONBOARD'
+[Desktop Entry]
+Type=Application
+Name=Onboard Keyboard
+Exec=onboard --size=800x200 --layout=Phone --xid
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+ONBOARD
+        echo "[installer] Onboard keyboard autostart configured"
+    fi
 }
 
 do_timezone() {

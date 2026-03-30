@@ -115,6 +115,8 @@ launch_chromium() {
         --disable-restore-session-state \
         --disable-translate \
         --disable-features=TranslateUI,VizDisplayCompositor \
+        --ignore-gpu-blocklist \
+        --ozone-platform=x11 \
         --noerrdialogs \
         --window-size=1024,600 \
         --window-position=0,0 \

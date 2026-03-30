@@ -119,21 +119,35 @@ for _bin in chromium chromium-browser google-chrome-stable google-chrome; do
 done
 
 # ── Chromium GPU flags per board ───────────────────────────────────────────────
+# Check if VAAPI is available (hardware video decode)
+_VAAPI_FLAGS=""
+if vainfo 2>/dev/null | grep -q "VA-API"; then
+    _VAAPI_FLAGS="--enable-accelerated-video-decode --use-gl=egl --enable-features=VaapiVideoDecoder"
+fi
+
 case "$HW_BOARD" in
     intel)
-        # Intel GPU: enable hardware acceleration
-        HW_GPU_FLAGS="--enable-gpu-rasterization --enable-zero-copy"
+        # Intel GPU: enable hardware acceleration + VAAPI
+        HW_GPU_FLAGS="--enable-gpu-rasterization --enable-zero-copy $_VAAPI_FLAGS"
         ;;
     raspberry)
-        # RPi 4/5 has V3D; RPi 3 needs software render
+        # RPi 4/5 has V3D GPU; RPi 3 uses software render
         if grep -q "Raspberry Pi 4\|Raspberry Pi 5" /proc/device-tree/model 2>/dev/null; then
-            HW_GPU_FLAGS="--enable-gpu-rasterization --enable-zero-copy"
+            HW_GPU_FLAGS="--enable-gpu-rasterization --enable-zero-copy $_VAAPI_FLAGS"
+        else
+            HW_GPU_FLAGS="--disable-gpu --disable-software-rasterizer"
+        fi
+        ;;
+    orangepi)
+        # Orange Pi: try V4L2 decode if available
+        if [ -e /dev/video0 ] && command -v v4l2-ctl &>/dev/null; then
+            HW_GPU_FLAGS="--disable-gpu-sandbox --enable-accelerated-video-decode --use-gl=egl"
         else
             HW_GPU_FLAGS="--disable-gpu --disable-software-rasterizer"
         fi
         ;;
     *)
-        # Orange Pi / Odroid / generic ARM — safest: no GPU
+        # Generic ARM / Odroid — no GPU
         HW_GPU_FLAGS="--disable-gpu --disable-software-rasterizer"
         ;;
 esac
