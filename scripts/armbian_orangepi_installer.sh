@@ -37,6 +37,23 @@ INSTALLER_LOG="$LOG_DIR/installer.log"
 SETTINGS="$DEST/config/user_settings.json"
 TITLE="Orange Pi Control Center"
 
+# ── Board detection ───────────────────────────────────────────────────────────
+BOARD="generic"
+_MODEL=""
+if [ -f /proc/device-tree/model ]; then
+    _MODEL="$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)"
+elif [ -f /etc/armbian-release ]; then
+    # shellcheck disable=SC1091
+    _MODEL="$(. /etc/armbian-release 2>/dev/null; echo "${BOARD_NAME:-}")"
+fi
+_MODEL_L="${_MODEL,,}"
+if   echo "$_MODEL_L" | grep -qE "orange.?pi";    then BOARD="orangepi"
+elif echo "$_MODEL_L" | grep -qE "raspberry.?pi"; then BOARD="raspberry"
+elif echo "$_MODEL_L" | grep -qE "odroid";        then BOARD="odroid"
+elif [ "$(uname -m)" = "x86_64" ];                then BOARD="intel"
+fi
+echo "[installer] Detected board: $BOARD  (${_MODEL:-unknown})"
+
 # Default source: directory containing this script, or CWD
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DEFAULT="$(dirname "$SCRIPT_DIR")"   # parent of scripts/
@@ -111,33 +128,50 @@ PY
 # ─────────────────────────────────────────────────────────────────────────────
 
 do_install() {
-    whiptail --title "$TITLE" --infobox "Installing system packages...\nThis may take a few minutes." 8 50
+    whiptail --title "$TITLE" --infobox "Installing system packages for board: $BOARD\nThis may take a few minutes." 8 56
     apt-get update -qq
+
+    # Core packages common to all boards
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
         python3 python3-pip python3-venv python3-dev \
         python3-flask python3-requests \
-        chromium-browser \
         xorg xinit xserver-xorg-input-libinput \
-        x11-xserver-utils unclutter \
+        x11-xserver-utils xdpyinfo unclutter \
         mpv alsa-utils \
         network-manager \
         curl wget jq \
-        rtl-sdr dablin sox \
-        usbutils \
-        rsync git \
-        2>/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        python3 python3-pip python3-venv python3-dev \
-        python3-flask python3-requests \
-        chromium \
-        xorg xinit xserver-xorg-input-libinput \
-        x11-xserver-utils unclutter \
-        mpv alsa-utils \
-        network-manager \
-        curl wget jq \
-        rtl-sdr dablin sox \
-        usbutils \
-        rsync git
-    info "System packages installed successfully."
+        usbutils rsync git \
+        2>/dev/null || true
+
+    # Chromium — package name varies by distro/board
+    for _pkg in chromium chromium-browser; do
+        DEBIAN_FRONTEND=noninteractive apt-get install -y "$_pkg" 2>/dev/null && break || true
+    done
+
+    # RTL-SDR — best-effort, not fatal
+    DEBIAN_FRONTEND=noninteractive apt-get install -y rtl-sdr dablin sox 2>/dev/null || true
+
+    # Board-specific extras
+    case "$BOARD" in
+        raspberry)
+            # raspi-config helper, VC libraries
+            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                raspi-config libraspberrypi-bin 2>/dev/null || true
+            ;;
+        odroid)
+            # Odroid utility package
+            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                odroid-utility 2>/dev/null || true
+            ;;
+        intel)
+            # Intel video/audio firmware
+            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                intel-microcode firmware-misc-nonfree \
+                va-driver-all 2>/dev/null || true
+            ;;
+    esac
+
+    info "System packages installed for board: $BOARD"
 }
 
 do_venv() {

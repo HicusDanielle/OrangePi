@@ -1,15 +1,14 @@
 #!/bin/bash
 ###############################################################################
 # start_display.sh — Start Xorg and Chromium kiosk
+# Board-agnostic: Orange Pi, Raspberry Pi, Odroid, Intel Stick
 # Deployed to: /opt/orangepi/scripts/start_display.sh
 # Called by:   x-display.service
 ###############################################################################
 set -uo pipefail
 
-APP_DIR="/opt/orangepi/apps"
 SCRIPT_DIR="/opt/orangepi/scripts"
 LOG_DIR="/var/log/orangepi"
-
 mkdir -p "$LOG_DIR"
 
 # ── Environment ───────────────────────────────────────────────────────────────
@@ -19,11 +18,21 @@ export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
 export XCURSOR_SIZE=24
 
+# ── Hardware detection ────────────────────────────────────────────────────────
+# shellcheck source=hw_detect.sh
+source "$SCRIPT_DIR/hw_detect.sh" 2>/dev/null || {
+    # Fallback defaults if hw_detect.sh missing
+    HW_BOARD="generic"
+    HW_CHROMIUM="chromium"
+    HW_GPU_FLAGS="--disable-gpu --disable-software-rasterizer"
+}
+echo "[display] Board: $HW_BOARD  Chromium: $HW_CHROMIUM"
+
 # ── 1. Wait for Flask dashboard to be ready ───────────────────────────────────
 echo "[display] Waiting for dashboard (port 5004)..."
 for i in $(seq 1 30); do
     if ss -tlnp | grep -q ':5004 '; then
-        echo "[display] Dashboard is up (${i}s)."
+        echo "[display] Dashboard ready (${i}s)."
         break
     fi
     sleep 1
@@ -34,8 +43,13 @@ pkill -f "Xorg :0" 2>/dev/null || true
 rm -f /tmp/.X0-lock /tmp/.X11-unix/X0 2>/dev/null || true
 sleep 1
 
-# ── 3. Start Xorg ─────────────────────────────────────────────────────────────
-echo "[display] Starting Xorg (DRM/KMS modesetting)..."
+# ── 3. Raspberry Pi: use startx / dispmanx path if no Xorg ───────────────────
+# RPi with KMS (vc4-kms-v3d) works fine with Xorg modesetting.
+# RPi with legacy firmware driver (vc4-fkms) needs fbturbo — handled by Xorg conf.
+# No special case needed; modesetting works on all RPi 3/4/5 with current kernel.
+
+# ── 4. Start Xorg ─────────────────────────────────────────────────────────────
+echo "[display] Starting Xorg..."
 /usr/lib/xorg/Xorg :0 vt1 \
     -logfile "$LOG_DIR/xorg.log" \
     -nolisten tcp \
@@ -53,38 +67,47 @@ for i in $(seq 1 45); do
 done
 
 if ! [ -e /tmp/.X0-lock ]; then
-    echo "[display] ERROR: Xorg failed to start within 45s. Check $LOG_DIR/xorg.log"
+    echo "[display] ERROR: Xorg failed within 45s — see $LOG_DIR/xorg.log"
     exit 1
 fi
 
-# ── 4. Detect connected output and set resolution ─────────────────────────────
+# ── 5. Detect connected output and set resolution ─────────────────────────────
 sleep 1
-echo "[display] Probing connected display outputs..."
+echo "[display] Probing display outputs..."
 CONNECTED_OUTPUT=$(DISPLAY=:0 xrandr --query 2>/dev/null \
     | awk '/ connected/ {print $1; exit}')
 CONNECTED_OUTPUT="${CONNECTED_OUTPUT:-HDMI-1}"
-echo "[display] Using output: $CONNECTED_OUTPUT"
+echo "[display] Output: $CONNECTED_OUTPUT"
 
-# Try exact mode, fall back to preferred, then auto
 DISPLAY=:0 xrandr --output "$CONNECTED_OUTPUT" --mode 1024x600 --rate 59.80 2>/dev/null \
     || DISPLAY=:0 xrandr --output "$CONNECTED_OUTPUT" --preferred 2>/dev/null \
     || DISPLAY=:0 xrandr --output "$CONNECTED_OUTPUT" --auto 2>/dev/null \
     || true
 
-# ── 5. Set desktop background (black) ─────────────────────────────────────────
+# Save detected output for use by device_config.py
+echo "$CONNECTED_OUTPUT" > /run/orangepi_display_output
+
+# ── 6. Desktop housekeeping ───────────────────────────────────────────────────
 DISPLAY=:0 xsetroot -solid black 2>/dev/null || true
-
-# ── 6. Disable screen blanking / DPMS at X level ─────────────────────────────
-DISPLAY=:0 xset s off 2>/dev/null || true
-DISPLAY=:0 xset -dpms 2>/dev/null || true
+DISPLAY=:0 xset s off    2>/dev/null || true
+DISPLAY=:0 xset -dpms    2>/dev/null || true
 DISPLAY=:0 xset s noblank 2>/dev/null || true
-
-# ── 7. Hide mouse cursor ──────────────────────────────────────────────────────
 DISPLAY=:0 unclutter -idle 0 -root 2>/dev/null &
+
+# ── 7. Board-specific RAM cap for Chromium ────────────────────────────────────
+# Limit renderer memory relative to board RAM
+if [ "${HW_RAM_MB:-512}" -le 512 ]; then
+    RAM_FLAG="--renderer-process-limit=1 --max-old-space-size=128"
+elif [ "${HW_RAM_MB:-512}" -le 1024 ]; then
+    RAM_FLAG="--renderer-process-limit=2 --max-old-space-size=256"
+else
+    RAM_FLAG="--max-old-space-size=512"
+fi
 
 # ── 8. Launch Chromium kiosk (auto-restart on crash) ─────────────────────────
 launch_chromium() {
-    DISPLAY=:0 chromium \
+    # shellcheck disable=SC2086
+    DISPLAY=:0 "$HW_CHROMIUM" \
         --kiosk \
         --no-sandbox \
         --disable-infobars \
@@ -100,8 +123,7 @@ launch_chromium() {
         --enable-touch-drag-drop \
         --overscroll-history-navigation=0 \
         --disable-pinch \
-        --disable-gpu \
-        --disable-software-rasterizer \
+        $HW_GPU_FLAGS \
         --disable-dev-shm-usage \
         --no-first-run \
         --disable-background-networking \
@@ -110,17 +132,15 @@ launch_chromium() {
         --metrics-recording-only \
         --safebrowsing-disable-auto-update \
         --memory-pressure-off \
-        --max-old-space-size=256 \
+        $RAM_FLAG \
         --app=http://localhost:5004 \
         >> "$LOG_DIR/chromium.log" 2>&1
 }
 
-echo "[display] Launching Chromium kiosk → http://localhost:5004"
-# Restart Chromium automatically if it exits (e.g. OOM crash)
+echo "[display] Launching $HW_CHROMIUM kiosk → http://localhost:5004"
 while true; do
     launch_chromium
     EXIT=$?
-    # Don't restart if X is gone or service is stopping
     kill -0 $XORG_PID 2>/dev/null || break
     echo "[display] Chromium exited (code $EXIT), restarting in 3s..."
     sleep 3
