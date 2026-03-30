@@ -1,0 +1,49 @@
+{
+	"folders": [
+		{ "path": "." }
+	],
+	"settings": {
+		"files.associations": {
+			"*.sh": "shellscript",
+			"*.service": "ini"
+		},
+		"python.defaultInterpreterPath": "/opt/orangepi/venv/bin/python3",
+		"editor.tabSize": 4,
+		"editor.insertSpaces": false,
+		"files.exclude": {
+			"**/__pycache__": true,
+			"**/*.pyc": true
+		},
+		"shellcheck.enable": true,
+		"shellcheck.executablePath": "shellcheck"
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-python.python",
+			"timonwong.shellcheck",
+			"foxundermoon.shell-format",
+			"redhat.vscode-yaml"
+		]
+	},
+	"launch": {
+		"version": "0.2.0",
+		"configurations": [
+			{
+				"name": "Dashboard (port 5004)",
+				"type": "python",
+				"request": "launch",
+				"program": "${workspaceFolder}/apps/dashboard.py",
+				"cwd": "${workspaceFolder}/apps",
+				"console": "integratedTerminal"
+			},
+			{
+				"name": "Weather (port 5000)",
+				"type": "python",
+				"request": "launch",
+				"program": "${workspaceFolder}/apps/web_app.py",
+				"cwd": "${workspaceFolder}/apps",
+				"console": "integratedTerminal"
+			}
+		]
+	}
+}

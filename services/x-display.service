@@ -1,0 +1,20 @@
+[Unit]
+Description=Orange Pi Control Center — X Display & Chromium Kiosk
+Documentation=https://github.com/your-repo/OrangePI
+After=network-online.target weather-station.service
+Wants=weather-station.service
+
+[Service]
+Type=simple
+User=root
+Environment="DISPLAY=:0"
+Environment="XDG_RUNTIME_DIR=/run/user/0"
+ExecStart=/usr/bin/bash /opt/orangepi/scripts/start_display.sh
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=orangepi-display
+
+[Install]
+WantedBy=multi-user.target

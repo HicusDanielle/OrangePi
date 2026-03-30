@@ -1,0 +1,60 @@
+# ── Secrets & credentials ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+secrets.json
+*_key
+*_secret
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+*.pub          # SSH public keys (optional: remove if you want to track)
+credentials.json
+auth.json
+api_keys.json
+
+# ── User settings (contain location, credentials) ────────────────────────────
+config/user_settings.json
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+.Python
+venv/
+.venv/
+env/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+/tmp/*.log
+logs/
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor ───────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/*.code-snippets
+.idea/
+*.swp
+*.swo
+*~
+
+# ── SSH deploy keys ───────────────────────────────────────────────────────────
+scripts/orangepi_key
+scripts/*.key

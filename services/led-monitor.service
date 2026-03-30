@@ -1,0 +1,16 @@
+[Unit]
+Description=Orange Pi Control Center — LED Status Monitor
+After=multi-user.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/bash /opt/orangepi/scripts/led_monitor.sh
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=orangepi-led
+
+[Install]
+WantedBy=multi-user.target

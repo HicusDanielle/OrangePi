@@ -1,0 +1,3 @@
+#!/bin/bash
+bash /opt/weather_station/browser_launcher.sh &
+exec fluxbox

@@ -1,0 +1,123 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+
+    // ── Deploy ──────────────────────────────────────────────────────────────
+    {
+      "label": "OrangePi: Deploy",
+      "type": "shell",
+      "command": "bash scripts/deploy.sh",
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ── SSH shell (interactive) ──────────────────────────────────────────────
+    {
+      "label": "OrangePi: SSH shell",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+
+    // ── Run one command on device (edit the 'cmd' value as needed) ───────────
+    {
+      "label": "OrangePi: Run command on device",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"${input:deviceCommand}\"",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ── Service control ──────────────────────────────────────────────────────
+    {
+      "label": "OrangePi: Restart all services",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"systemctl restart weather-station x-display led-monitor && echo Done\"",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "OrangePi: Restart apps only",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"systemctl restart weather-station && echo Done\"",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "OrangePi: Restart display",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"systemctl restart x-display && echo Done\"",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ── Logs ─────────────────────────────────────────────────────────────────
+    {
+      "label": "OrangePi: Tail dashboard log",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"tail -f /var/log/orangepi/dashboard.log\"",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "OrangePi: Tail all logs",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"tail -f /var/log/orangepi/*.log\"",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "OrangePi: Show last 50 lines all logs",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"for f in /var/log/orangepi/*.log; do echo; echo \\\"=== $f ===\"; tail -20 \\\"$f\\\"; done\"",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ── System info ───────────────────────────────────────────────────────────
+    {
+      "label": "OrangePi: System status",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"echo '=== Services ===' && systemctl is-active weather-station x-display led-monitor && echo '=== Ports ===' && ss -tlnp | grep -E ':(5000|5001|5002|5003|5004) ' && echo '=== CPU/Mem ===' && free -h && echo '=== Temp ===' && cat /sys/class/thermal/thermal_zone0/temp | awk '{print $1/1000 \\\"°C\\\"}' && echo '=== Disk ===' && df -h /\"",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "OrangePi: List running Python apps",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"pgrep -a python3\"",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ── Audio / Radio ─────────────────────────────────────────────────────────
+    {
+      "label": "OrangePi: Stop audio (kill mpv)",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"pkill -f mpv && echo Stopped || echo Nothing playing\"",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ── Power ────────────────────────────────────────────────────────────────
+    {
+      "label": "OrangePi: Reboot device",
+      "type": "shell",
+      "command": "ssh -i ~/.ssh/orangepi_key -o StrictHostKeyChecking=accept-new root@192.168.1.93 \"shutdown -r now\"",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    }
+
+  ],
+
+  "inputs": [
+    {
+      "id": "deviceCommand",
+      "type": "promptString",
+      "description": "Shell command to run on Orange Pi (root@192.168.1.93)",
+      "default": "systemctl status weather-station"
+    }
+  ]
+}

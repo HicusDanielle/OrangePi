@@ -1,0 +1,23 @@
+# Force LF line endings for all text files (shell scripts require LF on Linux)
+* text=auto eol=lf
+
+# Shell scripts must always be LF
+*.sh text eol=lf
+
+# Python
+*.py text eol=lf
+
+# Systemd service units
+*.service text eol=lf
+
+# Config / data
+*.json text eol=lf
+*.conf text eol=lf
+*.rules text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Windows-generated files that should stay as-is
+*.bat text eol=crlf

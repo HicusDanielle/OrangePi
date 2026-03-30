@@ -1,0 +1,16 @@
+{
+  "language": "en",
+  "latitude": 51.5074,
+  "longitude": -0.1278,
+  "timezone": "UTC",
+  "hardware_control": true,
+  "first_run": true,
+  "show_weewx": false,
+  "show_netdata": false,
+  "show_ha": false,
+  "apps": {
+    "weewx": "http://localhost:8080/weewx/",
+    "netdata": "http://localhost:19999",
+    "ha": "http://localhost:8123"
+  }
+}

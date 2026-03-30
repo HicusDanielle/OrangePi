@@ -1,0 +1,6 @@
+# wch.cn USB2IIC_CTP_CONTROL touchscreen (VID:PID 1a86:e5e3)
+# Detected on /dev/input/event5
+SUBSYSTEM=="input", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="e5e3", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1", TAG+="uaccess"
+
+# Generic USB HID touchscreen fallback
+SUBSYSTEM=="input", ATTRS{name}=="*ouch*", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"
