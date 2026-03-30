@@ -66,5 +66,10 @@ def volume():
     return jsonify({'ok': True, 'volume': vol})
 
 
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5003, debug=False)

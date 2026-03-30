@@ -8,8 +8,10 @@ set -uo pipefail
 
 APP_DIR="/opt/orangepi/apps"
 LOG_DIR="/var/log/orangepi"
-VENV="/opt/orangepi/venv/bin/python3"
-PYTHON="${VENV:-python3}"
+PY_BIN="/opt/orangepi/venv/bin/python3"
+PYTHON="${PY_BIN:-python3}"
+GUNICORN_BIN="/opt/orangepi/venv/bin/gunicorn"
+[ -x "$GUNICORN_BIN" ] || GUNICORN_BIN="gunicorn"
 
 mkdir -p "$LOG_DIR"
 cd "$APP_DIR"
@@ -32,18 +34,22 @@ wait_port_free() {
 
 # ── Start apps ────────────────────────────────────────────────────────────────
 start_app() {
-    local name=$1 port=$2 file=$3 log=$4
+    local name=$1 port=$2 module=$3 log=$4
     wait_port_free "$port"
-    echo "[start_all] Starting ${name} (port ${port})..."
-    "$PYTHON" "$file" >> "$LOG_DIR/${log}" 2>&1 &
+    echo "[start_all] Starting ${name} (port ${port}) via gunicorn..."
+    "$GUNICORN_BIN" -w 2 -b 127.0.0.1:"${port}" \
+        --access-logfile "$LOG_DIR/${log%.log}.access.log" \
+        --error-logfile "$LOG_DIR/${log}" \
+        --capture-output --timeout 30 \
+        "${module}:app" &
     echo $! > "/run/orangepi/${name}.pid"
 }
 
-start_app "portal"  5002 home_portal.py    portal.log
-start_app "weather" 5000 web_app.py        weather.log
-start_app "config"  5001 device_config.py  config.log
-start_app "radio"   5003 internet_radio.py radio.log
-start_app "dash"    5004 dashboard.py      dashboard.log
+start_app "portal"  5002 home_portal    portal.log
+start_app "weather" 5000 web_app        weather.log
+start_app "config"  5001 device_config  config.log
+start_app "radio"   5003 internet_radio radio.log
+start_app "dash"    5004 dashboard      dashboard.log
 
 echo "[start_all] All apps launched. PIDs in /run/orangepi_*.pid"
 

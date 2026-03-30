@@ -1722,5 +1722,11 @@ def api_keyboard(action):
     except Exception:
         return jsonify({'ok': False}), 500
 
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5004, debug=False)
